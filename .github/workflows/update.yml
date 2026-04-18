@@ -1,0 +1,68 @@
+name: Update OpenClaw
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact version to update to (leave empty for latest)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-openclaw
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Verify jq
+        run: jq --version
+
+      - name: Save old version
+        run: echo "OLD=$(jq -r .version pkgs/openclaw/version.json)" >> "$GITHUB_ENV"
+
+      - name: Run update.sh
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            ./scripts/update.sh "${{ inputs.version }}"
+          else
+            ./scripts/update.sh
+          fi
+
+      - name: Save new version
+        run: echo "NEW=$(jq -r .version pkgs/openclaw/version.json)" >> "$GITHUB_ENV"
+
+      - name: Validate build
+        if: env.OLD != env.NEW
+        run: |
+          nix build .#openclaw
+          ./result/bin/openclaw --version | tee /tmp/v
+          grep -q "$NEW" /tmp/v
+
+      - name: Commit and push
+        if: env.OLD != env.NEW
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pkgs/openclaw/version.json
+          git commit -m "openclaw: $OLD → $NEW"
+          git push
