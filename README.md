@@ -45,9 +45,20 @@ nix run github:stslex/openclaw-nix -- --version
 ./scripts/update.sh 2026.5.1
 ```
 
-## Auto-update
+## Auto-updates
 
-See `.github/workflows/update.yml` — added in a follow-up commit.
+A GitHub Actions workflow (`.github/workflows/update.yml`) keeps this repo in sync with npm.
+
+- **Daily check** at 03:30 UTC — fetches the latest version from npm, updates hashes, validates `nix build`, and pushes a commit if anything changed.
+- **Manual trigger:**
+  ```bash
+  gh workflow run update.yml
+  ```
+- **Pin a specific version:**
+  ```bash
+  gh workflow run update.yml -f version=2026.5.1
+  ```
+- **Required setting:** repo Settings → Actions → General → Workflow permissions → select "Read and write permissions".
 
 ## Acknowledgements
 
