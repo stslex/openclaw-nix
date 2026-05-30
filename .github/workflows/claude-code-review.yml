@@ -1,0 +1,47 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are reviewing a pull request for a Nix flake that packages the
+            "openclaw" npm CLI (see pkgs/openclaw and scripts/update.sh).
+
+            Review the diff and leave feedback as inline PR comments via the
+            `gh` CLI. Be concise and only comment when something is genuinely
+            worth raising. Focus on:
+            - Correctness of the Nix packaging (buildNpmPackage usage, hashes,
+              lockfile handling, postPatch lifecycle-hook removal).
+            - Robustness of scripts/update.sh and the update workflow.
+            - Security or supply-chain concerns (e.g. unpinned inputs, fetched
+              content, lifecycle scripts).
+            - Obvious bugs or correctness issues in any changed code.
+
+            If the change looks good, say so briefly. Do not nitpick style.
+          claude_args: |
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*)"
