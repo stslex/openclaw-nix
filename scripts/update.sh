@@ -29,7 +29,10 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 echo "openclaw: generating lockfile..."
 curl -fsSL "$TARBALL_URL" | tar -xz -C "$TMPDIR"
-(cd "$TMPDIR/package" && npm install --package-lock-only --legacy-peer-deps 2>/dev/null)
+# --ignore-scripts: --package-lock-only still runs the tarball's lifecycle
+# hooks (preinstall/postinstall/prepare), which we neither need nor trust here
+# and which can fail the update before a lockfile is produced.
+(cd "$TMPDIR/package" && npm install --package-lock-only --legacy-peer-deps --ignore-scripts 2>/dev/null)
 
 # The published tarball may ship an npm-shrinkwrap.json instead of a
 # package-lock.json. With --package-lock-only, npm updates whichever lockfile
