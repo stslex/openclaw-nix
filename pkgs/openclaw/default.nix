@@ -32,9 +32,16 @@ buildNpmPackage rec {
     # our lockfile (which the npmDepsHash is computed from).
     rm -f npm-shrinkwrap.json
 
-    # The tarball ships without source scripts that prepack/postinstall reference.
-    # Remove lifecycle hooks that are only useful for development builds.
-    ${jq}/bin/jq 'del(.scripts.preinstall, .scripts.prepack, .scripts.postinstall, .scripts.prepare)' package.json > package.json.tmp
+    # The published tarball ships a prebuilt dist/ and a plain openclaw.mjs bin,
+    # so none of the package's own lifecycle scripts are needed to package it
+    # (dontNpmBuild is set). Those scripts reference dev-only source files that
+    # aren't shipped (e.g. preinstall, prepack/postpack which call
+    # scripts/package-changelog.mjs, postinstall, prepare), and npm runs
+    # prepack/postpack during the install phase's `npm pack`, failing the build.
+    # Drop the whole scripts object so new releases adding more hooks don't break
+    # the build. Dependency install scripts live in node_modules and are
+    # unaffected.
+    ${jq}/bin/jq 'del(.scripts)' package.json > package.json.tmp
     mv package.json.tmp package.json
   '';
 
