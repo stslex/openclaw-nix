@@ -27,14 +27,30 @@ TARBALL_HASH=$(nix hash convert --hash-algo sha256 --from nix32 --to sri "$TARBA
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-echo "openclaw: generating package-lock.json..."
+echo "openclaw: generating lockfile..."
 curl -fsSL "$TARBALL_URL" | tar -xz -C "$TMPDIR"
-(cd "$TMPDIR/package" && npm install --package-lock-only --legacy-peer-deps 2>/dev/null)
+# --ignore-scripts: --package-lock-only still runs the tarball's lifecycle
+# hooks (preinstall/postinstall/prepare), which we neither need nor trust here
+# and which can fail the update before a lockfile is produced.
+(cd "$TMPDIR/package" && npm install --package-lock-only --legacy-peer-deps --ignore-scripts 2>/dev/null)
+
+# The published tarball may ship an npm-shrinkwrap.json instead of a
+# package-lock.json. With --package-lock-only, npm updates whichever lockfile
+# is present and only creates package-lock.json when neither exists, so resolve
+# the produced lockfile rather than assuming package-lock.json.
+if [[ -f "$TMPDIR/package/package-lock.json" ]]; then
+  PRODUCED_LOCK="$TMPDIR/package/package-lock.json"
+elif [[ -f "$TMPDIR/package/npm-shrinkwrap.json" ]]; then
+  PRODUCED_LOCK="$TMPDIR/package/npm-shrinkwrap.json"
+else
+  echo "openclaw: npm did not produce a lockfile" >&2
+  exit 1
+fi
 
 echo "openclaw: computing npm deps hash..."
-NPM_DEPS_HASH=$(nix run nixpkgs#prefetch-npm-deps -- "$TMPDIR/package/package-lock.json" 2>/dev/null)
+NPM_DEPS_HASH=$(nix run nixpkgs#prefetch-npm-deps -- "$PRODUCED_LOCK" 2>/dev/null)
 
-cp "$TMPDIR/package/package-lock.json" "$LOCKFILE"
+cp "$PRODUCED_LOCK" "$LOCKFILE"
 
 jq -n --arg v "$VERSION" --arg t "$TARBALL_HASH" --arg n "$NPM_DEPS_HASH" \
   '{version:$v, tarballHash:$t, npmDepsHash:$n}' > "$VERSION_JSON.tmp"

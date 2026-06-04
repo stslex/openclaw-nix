@@ -27,9 +27,14 @@ buildNpmPackage rec {
   postPatch = ''
     cp ${./package-lock.json} package-lock.json
 
+    # Newer tarballs ship an npm-shrinkwrap.json, which npm prefers over the
+    # package-lock.json we pin against. Drop it so the build resolves deps from
+    # our lockfile (which the npmDepsHash is computed from).
+    rm -f npm-shrinkwrap.json
+
     # The tarball ships without source scripts that prepack/postinstall reference.
     # Remove lifecycle hooks that are only useful for development builds.
-    ${jq}/bin/jq 'del(.scripts.prepack, .scripts.postinstall, .scripts.prepare)' package.json > package.json.tmp
+    ${jq}/bin/jq 'del(.scripts.preinstall, .scripts.prepack, .scripts.postinstall, .scripts.prepare)' package.json > package.json.tmp
     mv package.json.tmp package.json
   '';
 
