@@ -2,7 +2,7 @@
   lib,
   buildNpmPackage,
   fetchurl,
-  nodejs_22,
+  nodejs_24,
   makeWrapper,
   python3,
   pkg-config,
@@ -47,7 +47,7 @@ buildNpmPackage rec {
 
   npmDepsHash = versionInfo.npmDepsHash;
 
-  nodejs = nodejs_22;
+  nodejs = nodejs_24;
 
   nativeBuildInputs = [
     makeWrapper
