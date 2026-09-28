@@ -41,8 +41,27 @@ buildNpmPackage rec {
     # Drop the whole scripts object so new releases adding more hooks don't break
     # the build. Dependency install scripts live in node_modules and are
     # unaffected.
-    ${jq}/bin/jq 'del(.scripts)' package.json > package.json.tmp
+    #
+    # bundleDependencies goes too, along with the node_modules/ the tarball ships
+    # for it (chrome-devtools-mcp since 2026.9). scripts/update.sh resolves it
+    # from the registry so prefetch-npm-deps caches it; left bundled, the lockfile
+    # entry has no resolved/integrity and the offline install fails with
+    # ENOTCACHED.
+    ${jq}/bin/jq 'del(.scripts, .bundleDependencies, .bundledDependencies)' package.json > package.json.tmp
     mv package.json.tmp package.json
+    rm -rf node_modules
+  '';
+
+  # The tarball ships a .openclaw-lifecycle-pending marker that its postinstall
+  # removes. With `scripts` dropped above nothing does, and the CLI then tries to
+  # finish the lifecycle on first run by writing into the read-only store
+  # (EACCES on .openclaw-lifecycle-lock). Run that postinstall here instead,
+  # while $out is still writable.
+  postInstall = ''
+    pushd $out/lib/node_modules/openclaw
+    ${nodejs_24}/bin/node scripts/postinstall-bundled-plugins.mjs
+    popd
+    test ! -e $out/lib/node_modules/openclaw/.openclaw-lifecycle-pending
   '';
 
   npmDepsHash = versionInfo.npmDepsHash;

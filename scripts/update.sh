@@ -29,6 +29,15 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 echo "openclaw: generating lockfile..."
 curl -fsSL "$TARBALL_URL" | tar -xz -C "$TMPDIR"
+# Since 2026.9 the tarball bundles chrome-devtools-mcp: it lists it in
+# bundleDependencies and ships its node_modules/. npm records a dependency it
+# finds already installed, or bundled, with no resolved/integrity, which
+# prefetch-npm-deps skips, and the offline build then fails with ENOTCACHED.
+# Resolve it from the registry like any other dependency instead. default.nix
+# drops the same field so package.json and the lockfile agree.
+rm -rf "$TMPDIR/package/node_modules"
+jq 'del(.bundleDependencies, .bundledDependencies)' "$TMPDIR/package/package.json" \
+  > "$TMPDIR/package.json" && mv "$TMPDIR/package.json" "$TMPDIR/package/package.json"
 # --ignore-scripts: --package-lock-only still runs the tarball's lifecycle
 # hooks (preinstall/postinstall/prepare), which we neither need nor trust here
 # and which can fail the update before a lockfile is produced.
